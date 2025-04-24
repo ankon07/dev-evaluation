@@ -1,0 +1,61 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.chart-container {
+  height: 300px;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.wallet-card {
+  background: linear-gradient(45deg, #2196F3 30%, #21CBF3 90%);
+  color: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.token-amount {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+.evaluation-score-high {
+  color: #4caf50;
+}
+
+.evaluation-score-medium {
+  color: #ff9800;
+}
+
+.evaluation-score-low {
+  color: #f44336;
+}
+
+.skill-chip {
+  margin: 4px;
+}
+
+.transaction-success {
+  color: #4caf50;
+}
+
+.transaction-pending {
+  color: #ff9800;
+}
+
+.transaction-failed {
+  color: #f44336;
+}
