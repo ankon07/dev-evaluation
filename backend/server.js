@@ -42,7 +42,7 @@ app.use('/api', limiter);
 
 // Enable CORS with specific options
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: ['http://localhost:3000', 'http://localhost:5000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -62,6 +62,9 @@ const developerRoutes = require('./routes/developers');
 const evaluationRoutes = require('./routes/evaluations');
 const tokenRoutes = require('./routes/tokens');
 const adminRoutes = require('./routes/admin');
+const notificationRoutes = require('./routes/notifications');
+const redemptionRoutes = require('./routes/redemptions');
+const githubRoutes = require('./routes/github');
 
 // Add a simple test endpoint
 app.get('/api/test', (req, res) => {
@@ -74,6 +77,9 @@ app.use('/api/developers', developerRoutes);
 app.use('/api/evaluations', evaluationRoutes);
 app.use('/api/tokens', tokenRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/redemptions', redemptionRoutes);
+app.use('/api', githubRoutes);
 
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {

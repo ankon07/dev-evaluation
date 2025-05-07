@@ -7,6 +7,7 @@ const jiloService = require('../jilo/jiloService');
 const cicdService = require('../cicd/cicdService');
 const codeQualityService = require('../codeQuality/codeQualityService');
 const tokenService = require('../blockchain/tokenService');
+const notificationService = require('../notification/notificationService');
 
 class EvaluationService {
   /**
@@ -31,6 +32,21 @@ class EvaluationService {
         },
         status: 'pending'
       });
+
+      // Notify developer about new evaluation
+      await notificationService.notifyDeveloperAboutNewEvaluation(evaluation._id);
+
+      // Notify admins about new evaluation
+      const admins = await User.find({ role: 'admin' });
+      for (const admin of admins) {
+        await notificationService.sendInAppNotification(
+          admin._id,
+          'New Evaluation Created',
+          `A new evaluation has been created for ${developer.name} (${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()})`,
+          'info',
+          { evaluationId: evaluation._id }
+        );
+      }
 
       return evaluation;
     } catch (error) {
@@ -98,15 +114,39 @@ class EvaluationService {
         if (result.success) {
           evaluation.transactionHash = result.transactionHash;
           evaluation.status = 'completed';
+          
+          // Notify developer about completed evaluation
+          await notificationService.notifyDeveloperAboutCompletedEvaluation(evaluation._id);
+          
+          // Notify admins about completed evaluation
+          await notificationService.notifyAdminAboutStatusChange(evaluation._id, 'completed');
         } else {
           evaluation.status = 'failed';
           evaluation.error = result.error;
+          
+          // Notify admins about failed evaluation
+          await notificationService.notifyAdminAboutStatusChange(evaluation._id, 'failed');
+          
+          // Notify developer about failed evaluation
+          await notificationService.sendInAppNotification(
+            developer._id,
+            'Evaluation Processing Failed',
+            `Your evaluation for the period ${new Date(evaluation.period.startDate).toLocaleDateString()} - ${new Date(evaluation.period.endDate).toLocaleDateString()} has failed to process. An administrator will review the issue.`,
+            'error',
+            { evaluationId: evaluation._id }
+          );
         }
         
         await evaluation.save();
       } else {
         evaluation.status = 'completed';
         await evaluation.save();
+        
+        // Notify developer about completed evaluation
+        await notificationService.notifyDeveloperAboutCompletedEvaluation(evaluation._id);
+        
+        // Notify admins about completed evaluation
+        await notificationService.notifyAdminAboutStatusChange(evaluation._id, 'completed');
       }
 
       return evaluation;
@@ -114,11 +154,23 @@ class EvaluationService {
       console.error(`Error processing evaluation: ${error.message}`);
       
       // Update evaluation status to failed
-      const evaluation = await Evaluation.findById(evaluationId);
+      const evaluation = await Evaluation.findById(evaluationId).populate('developer');
       if (evaluation) {
         evaluation.status = 'failed';
         evaluation.error = error.message;
         await evaluation.save();
+        
+        // Notify admins about failed evaluation
+        await notificationService.notifyAdminAboutStatusChange(evaluation._id, 'failed');
+        
+        // Notify developer about failed evaluation
+        await notificationService.sendInAppNotification(
+          evaluation.developer._id,
+          'Evaluation Processing Failed',
+          `Your evaluation for the period ${new Date(evaluation.period.startDate).toLocaleDateString()} - ${new Date(evaluation.period.endDate).toLocaleDateString()} has failed to process. An administrator will review the issue.`,
+          'error',
+          { evaluationId: evaluation._id, error: error.message }
+        );
       }
       
       throw error;
@@ -415,6 +467,113 @@ class EvaluationService {
         details: []
       };
     }
+  }
+
+  /**
+   * Process a completed task and reward the developer
+   * @param {string} taskId - Task ID
+   * @returns {Promise<Object>} - Result of task processing
+   */
+  async processCompletedTask(taskId) {
+    try {
+      // Get the task
+      const task = await Task.findById(taskId);
+      if (!task) {
+        throw new Error('Task not found');
+      }
+
+      // Check if task is completed and not already processed
+      if (!['done', 'verified'].includes(task.status) || task.evaluationProcessed) {
+        return {
+          success: false,
+          message: 'Task is not completed or already processed'
+        };
+      }
+
+      // Get the developer
+      const developer = await User.findById(task.assignee);
+      if (!developer) {
+        throw new Error('Developer not found');
+      }
+
+      // Calculate token reward based on task difficulty
+      const tokenReward = this.calculateTaskTokenReward(task);
+
+      // Create token transaction
+      if (tokenReward > 0 && developer.walletAddress) {
+        const transaction = await Transaction.create({
+          to: developer._id,
+          amount: tokenReward,
+          type: 'mint',
+          reason: 'task_completion_reward',
+          taskId: task._id,
+          status: 'pending'
+        });
+
+        // Process transaction on blockchain
+        const result = await tokenService.processTransaction(transaction._id);
+        
+        // Mark task as processed
+        task.evaluationProcessed = true;
+        await task.save();
+
+        // Notify developer about task reward
+        await notificationService.sendInAppNotification(
+          developer._id,
+          'Task Completion Reward',
+          `You have received ${tokenReward} DEV tokens for completing the task: ${task.title}`,
+          'success',
+          { taskId: task._id, tokenReward }
+        );
+
+        return {
+          success: result.success,
+          taskId: task._id,
+          tokenReward,
+          transactionHash: result.transactionHash,
+          message: `Developer ${developer.name} rewarded with ${tokenReward} tokens for completing task ${task.title}`
+        };
+      } else {
+        return {
+          success: false,
+          message: 'No reward issued - either reward amount is 0 or developer has no wallet address'
+        };
+      }
+    } catch (error) {
+      console.error(`Error processing completed task: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Calculate token reward for a completed task
+   * @param {Object} task - Task object
+   * @returns {number} - Token reward amount
+   */
+  calculateTaskTokenReward(task) {
+    // Base reward based on task difficulty
+    const difficultyRewards = {
+      easy: 0.5,
+      medium: 1.0,
+      hard: 2.0
+    };
+    
+    let reward = difficultyRewards[task.difficulty] || 1.0;
+    
+    // Additional reward for verified tasks (higher quality)
+    if (task.status === 'verified') {
+      reward *= 1.25; // 25% bonus for verified tasks
+    }
+    
+    // Additional reward based on task type
+    if (task.type === 'bug') {
+      reward *= 1.1; // 10% bonus for bug fixes
+    } else if (task.type === 'feature') {
+      reward *= 1.2; // 20% bonus for new features
+    }
+    
+    // Round to 2 decimal places
+    return Math.round(reward * 100) / 100;
   }
 
   /**

@@ -35,6 +35,12 @@ router.post('/sync', syncExternalData);
 // Statistics and reporting routes
 router.get('/stats', getSystemStats);
 router.get('/reports', generateReport);
+router.get('/reports/overview', generateReport);
+router.get('/reports/top-developers', generateReport);
+router.get('/reports/token-distribution', generateReport);
+router.get('/reports/activity-trends', generateReport);
+router.get('/reports/evaluation-metrics', generateReport);
+router.get('/reports/export', generateReport);
 router.get('/logs', getAuditLogs);
 
 // Test connection routes

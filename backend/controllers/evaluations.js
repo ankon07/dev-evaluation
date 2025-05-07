@@ -291,6 +291,83 @@ exports.getEvaluationMetrics = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc    Approve evaluation
+// @route   PUT /api/evaluations/:id/approve
+// @access  Private/Admin
+exports.approveEvaluation = asyncHandler(async (req, res, next) => {
+  const { approvalType } = req.body;
+  
+  if (!approvalType) {
+    return next(new ErrorResponse('Please provide an approval type', 400));
+  }
+  
+  // Check if evaluation exists
+  const evaluation = await Evaluation.findById(req.params.id).populate('developer');
+  if (!evaluation) {
+    return next(
+      new ErrorResponse(`Evaluation not found with id of ${req.params.id}`, 404)
+    );
+  }
+  
+  // Only admins can approve evaluations
+  if (req.user.role !== 'admin' && req.user.role !== 'hr') {
+    return next(
+      new ErrorResponse(`User ${req.user.id} is not authorized to approve evaluations`, 403)
+    );
+  }
+  
+  // Update evaluation approval status
+  evaluation.approvalStatus = 'approved';
+  evaluation.approvedBy = req.user.id;
+  evaluation.approvedAt = Date.now();
+  evaluation.approvalType = approvalType;
+  
+  await evaluation.save();
+  
+  // Notify developer about approval
+  const notificationService = require('../services/notification/notificationService');
+  await notificationService.sendInAppNotification(
+    evaluation.developer._id,
+    'Evaluation Approved',
+    `Your evaluation for the period ${new Date(evaluation.period.startDate).toLocaleDateString()} - ${new Date(evaluation.period.endDate).toLocaleDateString()} has been approved.`,
+    'success',
+    { evaluationId: evaluation._id, approvalType }
+  );
+  
+  res.status(200).json({
+    success: true,
+    data: evaluation
+  });
+});
+
+// @desc    Process completed task and reward developer
+// @route   POST /api/evaluations/tasks/:taskId/process
+// @access  Private/Admin
+exports.processCompletedTask = asyncHandler(async (req, res, next) => {
+  const taskId = req.params.taskId;
+  
+  try {
+    // Process the completed task
+    const result = await evaluationService.processCompletedTask(taskId);
+    
+    if (result.success) {
+      res.status(200).json({
+        success: true,
+        data: result
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.message
+      });
+    }
+  } catch (error) {
+    return next(
+      new ErrorResponse(`Error processing task: ${error.message}`, 500)
+    );
+  }
+});
+
 // @desc    Get evaluation history for a developer
 // @route   GET /api/evaluations/developer/:developerId/history
 // @access  Private
