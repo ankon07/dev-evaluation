@@ -51,8 +51,17 @@ exports.mintTokens = asyncHandler(async (req, res, next) => {
   const result = await tokenService.processTransaction(transaction._id);
 
   if (!result.success) {
+    // Delete the pending transaction since it failed
+    await Transaction.findByIdAndDelete(transaction._id);
+    
+    // Provide a more detailed error message
+    let errorMessage = result.error;
+    if (result.originalError) {
+      console.error('Original error:', result.originalError);
+    }
+    
     return next(
-      new ErrorResponse(`Minting failed: ${result.error}`, 500)
+      new ErrorResponse(`Minting failed: ${errorMessage}`, 500)
     );
   }
 
@@ -167,8 +176,17 @@ exports.transferTokens = asyncHandler(async (req, res, next) => {
   const result = await tokenService.processTransaction(transaction._id);
 
   if (!result.success) {
+    // Delete the pending transaction since it failed
+    await Transaction.findByIdAndDelete(transaction._id);
+    
+    // Provide a more detailed error message
+    let errorMessage = result.error;
+    if (result.originalError) {
+      console.error('Original error:', result.originalError);
+    }
+    
     return next(
-      new ErrorResponse(`Transaction failed: ${result.error}`, 500)
+      new ErrorResponse(`Transaction failed: ${errorMessage}`, 500)
     );
   }
 
@@ -230,8 +248,17 @@ exports.stakeTokens = asyncHandler(async (req, res, next) => {
   const result = await tokenService.processTransaction(transaction._id);
 
   if (!result.success) {
+    // Delete the pending transaction since it failed
+    await Transaction.findByIdAndDelete(transaction._id);
+    
+    // Provide a more detailed error message
+    let errorMessage = result.error;
+    if (result.originalError) {
+      console.error('Original error:', result.originalError);
+    }
+    
     return next(
-      new ErrorResponse(`Staking failed: ${result.error}`, 500)
+      new ErrorResponse(`Staking failed: ${errorMessage}`, 500)
     );
   }
 
@@ -284,8 +311,17 @@ exports.unstakeTokens = asyncHandler(async (req, res, next) => {
   const result = await tokenService.processTransaction(transaction._id);
 
   if (!result.success) {
+    // Delete the pending transaction since it failed
+    await Transaction.findByIdAndDelete(transaction._id);
+    
+    // Provide a more detailed error message
+    let errorMessage = result.error;
+    if (result.originalError) {
+      console.error('Original error:', result.originalError);
+    }
+    
     return next(
-      new ErrorResponse(`Unstaking failed: ${result.error}`, 500)
+      new ErrorResponse(`Unstaking failed: ${errorMessage}`, 500)
     );
   }
 
@@ -442,8 +478,17 @@ exports.redeemTokens = asyncHandler(async (req, res, next) => {
   const result = await tokenService.processTransaction(transaction._id);
 
   if (!result.success) {
+    // Delete the pending transaction since it failed
+    await Transaction.findByIdAndDelete(transaction._id);
+    
+    // Provide a more detailed error message
+    let errorMessage = result.error;
+    if (result.originalError) {
+      console.error('Original error:', result.originalError);
+    }
+    
     return next(
-      new ErrorResponse(`Redemption failed: ${result.error}`, 500)
+      new ErrorResponse(`Redemption failed: ${errorMessage}`, 500)
     );
   }
 

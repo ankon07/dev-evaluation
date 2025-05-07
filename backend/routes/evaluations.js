@@ -7,7 +7,9 @@ const {
   processEvaluation,
   getDeveloperEvaluations,
   getEvaluationMetrics,
-  getEvaluationHistory
+  getEvaluationHistory,
+  approveEvaluation,
+  processCompletedTask
 } = require('../controllers/evaluations');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -17,9 +19,12 @@ router.post('/', protect, authorize('admin', 'hr'), createEvaluation);
 // Put specific routes before parameterized routes
 router.get('/developer/:developerId', protect, getDeveloperEvaluations);
 router.get('/developer/:developerId/history', protect, getEvaluationHistory);
+// Task processing route
+router.post('/tasks/:taskId/process', protect, authorize('admin'), processCompletedTask);
 // Parameterized routes
 router.get('/:id', protect, getEvaluation);
 router.post('/:id/process', protect, authorize('admin'), processEvaluation);
+router.put('/:id/approve', protect, authorize('admin', 'hr'), approveEvaluation);
 router.get('/:id/metrics', protect, getEvaluationMetrics);
 
 // Additional routes for evaluation details

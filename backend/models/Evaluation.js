@@ -178,6 +178,31 @@ const EvaluationSchema = new mongoose.Schema({
     enum: ['pending', 'processing', 'completed', 'failed'],
     default: 'pending'
   },
+  approvalStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
+  approvalType: {
+    type: String,
+    enum: ['token_reward', 'score_adjustment', 'general'],
+    default: 'general'
+  },
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  approvedAt: {
+    type: Date
+  },
+  description: {
+    type: String,
+    trim: true
+  },
+  feedback: {
+    type: String,
+    trim: true
+  },
   createdAt: {
     type: Date,
     default: Date.now

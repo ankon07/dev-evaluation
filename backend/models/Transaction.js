@@ -12,7 +12,7 @@ const TransactionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: function() {
-      return !['burn', 'stake', 'unstake'].includes(this.type);
+      return !['burn', 'stake', 'unstake', 'redeem'].includes(this.type);
     }
   },
   amount: {
@@ -22,7 +22,7 @@ const TransactionSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['mint', 'transfer', 'burn', 'stake', 'unstake', 'reward'],
+    enum: ['mint', 'transfer', 'burn', 'stake', 'unstake', 'reward', 'redeem'],
     required: [true, 'Please specify transaction type']
   },
   reason: {
@@ -34,6 +34,20 @@ const TransactionSchema = new mongoose.Schema({
     ref: 'Evaluation',
     required: function() {
       return this.type === 'mint' && this.reason === 'evaluation_reward';
+    }
+  },
+  taskId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Task',
+    required: function() {
+      return this.type === 'mint' && this.reason === 'task_completion_reward';
+    }
+  },
+  redemption: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Redemption',
+    required: function() {
+      return this.type === 'redeem' && this.reason === 'token_redemption';
     }
   },
   status: {

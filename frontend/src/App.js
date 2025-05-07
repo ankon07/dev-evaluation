@@ -21,11 +21,17 @@ import Evaluations from './components/developer/Evaluations';
 import EvaluationDetail from './components/developer/EvaluationDetail';
 import Wallet from './components/developer/Wallet';
 import Transactions from './components/developer/Transactions';
+import RedemptionOptions from './components/developer/RedemptionOptions';
+import GitHubProfile from './components/developer/GitHubProfile';
+
+// GitHub Auth
+import GitHubAuth from './components/auth/GitHubAuth';
 
 // Admin Pages
 import AdminDashboard from './components/dashboard/AdminDashboard';
 import ManageUsers from './components/admin/ManageUsers';
 import ManageEvaluations from './components/admin/ManageEvaluations';
+import ManageRedemptions from './components/admin/ManageRedemptions';
 import SystemConfig from './components/admin/SystemConfig';
 import RewardRules from './components/admin/RewardRules';
 import Reports from './components/admin/Reports';
@@ -65,6 +71,7 @@ function App() {
           <Route path="/register" element={currentUser ? <Navigate to="/" /> : <Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:token" element={<ResetPassword />} />
+          <Route path="/github-auth" element={<GitHubAuth />} />
         </Route>
 
         {/* Protected Routes */}
@@ -77,6 +84,8 @@ function App() {
             <Route path="/evaluations/:id" element={<EvaluationDetail />} />
             <Route path="/wallet" element={<Wallet />} />
             <Route path="/transactions" element={<Transactions />} />
+            <Route path="/redemptions" element={<RedemptionOptions />} />
+            <Route path="/github-profile" element={<GitHubProfile />} />
           </Route>
         </Route>
 
@@ -87,6 +96,7 @@ function App() {
             <Route path="/admin/users" element={<ManageUsers />} />
             <Route path="/admin/evaluations" element={<ManageEvaluations />} />
             <Route path="/admin/evaluations/:id" element={<EvaluationDetail />} />
+            <Route path="/admin/redemptions" element={<ManageRedemptions />} />
             <Route path="/admin/config" element={<SystemConfig />} />
             <Route path="/admin/rules" element={<RewardRules />} />
             <Route path="/admin/reports" element={<Reports />} />

@@ -6,12 +6,14 @@ const User = require('../../models/User');
 
 // Load contract artifacts
 const DevTokenArtifact = require('../../../smart-contracts/artifacts/contracts/DevToken.sol/DevToken.json');
+const TaskRewardManagerArtifact = require('../../../smart-contracts/artifacts/contracts/TaskRewardManager.sol/TaskRewardManager.json');
 
 class TokenService {
   constructor() {
     this.isInitialized = false;
     this.initializationError = null;
     this.initializationPromise = this.initialize();
+    this.taskRewardManagerInitialized = false;
   }
 
   async initialize() {
@@ -35,9 +37,13 @@ class TokenService {
         console.warn('Could not get network ID, but continuing:', netError.message);
       }
 
-      // Initialize the contract
+      // Initialize the DevToken contract
       this.DevToken = Contract(DevTokenArtifact);
       this.DevToken.setProvider(provider);
+
+      // Initialize the TaskRewardManager contract
+      this.TaskRewardManager = Contract(TaskRewardManagerArtifact);
+      this.TaskRewardManager.setProvider(provider);
 
       // Get deployed contract instance with retry logic
       let retries = 5; // Increased retries
@@ -51,8 +57,18 @@ class TokenService {
           );
           
           this.tokenInstance = await Promise.race([contractInstancePromise, timeoutPromise]);
-          console.log('Contract instance obtained successfully');
+          console.log('DevToken contract instance obtained successfully');
           this.isInitialized = true;
+          
+          // Try to get TaskRewardManager instance
+          try {
+            this.taskRewardManagerInstance = await this.getTaskRewardManagerInstance();
+            console.log('TaskRewardManager contract instance obtained successfully');
+            this.taskRewardManagerInitialized = true;
+          } catch (taskRewardError) {
+            console.warn('Could not initialize TaskRewardManager, but continuing:', taskRewardError.message);
+          }
+          
           break;
         } catch (contractError) {
           retries--;
@@ -161,12 +177,12 @@ class TokenService {
   async getContractInstance() {
     try {
       // If contract address is provided in env, use it
-      if (process.env.CONTRACT_ADDRESS) {
+      if (process.env.DEV_TOKEN_ADDRESS) {
         try {
-          console.log(`Attempting to connect to contract at address: ${process.env.CONTRACT_ADDRESS}`);
-          return await this.DevToken.at(process.env.CONTRACT_ADDRESS);
+          console.log(`Attempting to connect to DevToken contract at address: ${process.env.DEV_TOKEN_ADDRESS}`);
+          return await this.DevToken.at(process.env.DEV_TOKEN_ADDRESS);
         } catch (atError) {
-          console.error(`Error connecting to contract at ${process.env.CONTRACT_ADDRESS}:`, atError.message);
+          console.error(`Error connecting to contract at ${process.env.DEV_TOKEN_ADDRESS}:`, atError.message);
           console.log('Falling back to deployed contract...');
           // Fall back to deployed contract if "at" fails
           return await this.DevToken.deployed();
@@ -174,14 +190,46 @@ class TokenService {
       }
       
       // Otherwise get the deployed contract
-      console.log('Getting deployed contract instance...');
+      console.log('Getting deployed DevToken contract instance...');
       return await this.DevToken.deployed();
     } catch (error) {
-      console.error('Error getting contract instance:', error);
+      console.error('Error getting DevToken contract instance:', error);
       
       // Create a more descriptive error
       const enhancedError = new Error(
-        `Failed to get contract instance: ${error.message}. ` +
+        `Failed to get DevToken contract instance: ${error.message}. ` +
+        'This could be due to network connectivity issues, ' +
+        'invalid contract address, or the contract not being deployed to this network.'
+      );
+      enhancedError.originalError = error;
+      throw enhancedError;
+    }
+  }
+  
+  async getTaskRewardManagerInstance() {
+    try {
+      // If contract address is provided in env, use it
+      if (process.env.TASK_REWARD_MANAGER_ADDRESS) {
+        try {
+          console.log(`Attempting to connect to TaskRewardManager contract at address: ${process.env.TASK_REWARD_MANAGER_ADDRESS}`);
+          return await this.TaskRewardManager.at(process.env.TASK_REWARD_MANAGER_ADDRESS);
+        } catch (atError) {
+          console.error(`Error connecting to contract at ${process.env.TASK_REWARD_MANAGER_ADDRESS}:`, atError.message);
+          console.log('Falling back to deployed contract...');
+          // Fall back to deployed contract if "at" fails
+          return await this.TaskRewardManager.deployed();
+        }
+      }
+      
+      // Otherwise get the deployed contract
+      console.log('Getting deployed TaskRewardManager contract instance...');
+      return await this.TaskRewardManager.deployed();
+    } catch (error) {
+      console.error('Error getting TaskRewardManager contract instance:', error);
+      
+      // Create a more descriptive error
+      const enhancedError = new Error(
+        `Failed to get TaskRewardManager contract instance: ${error.message}. ` +
         'This could be due to network connectivity issues, ' +
         'invalid contract address, or the contract not being deployed to this network.'
       );
@@ -263,19 +311,51 @@ class TokenService {
     try {
       await this.ensureInitialized();
       
+      // Check if contract is paused
+      try {
+        const isPaused = await this.tokenInstance.paused();
+        if (isPaused) {
+          return {
+            success: false,
+            error: 'Token transfers are currently paused'
+          };
+        }
+      } catch (pauseCheckError) {
+        console.warn('Could not check if contract is paused:', pauseCheckError.message);
+        // Continue anyway, the transfer will fail if paused
+      }
+      
+      // Check for staked tokens
+      try {
+        const stakedAmount = await this.tokenInstance.getStakedAmount(fromAddress);
+        const balance = await this.tokenInstance.balanceOf(fromAddress);
+        const availableBalance = this.web3.utils.toBigInt(balance) - this.web3.utils.toBigInt(stakedAmount);
+        const transferAmount = this.web3.utils.toBigInt(this.web3.utils.toWei(amount.toString(), 'ether'));
+        
+        if (transferAmount > availableBalance) {
+          return {
+            success: false,
+            error: 'Cannot transfer staked tokens or insufficient available balance'
+          };
+        }
+      } catch (balanceCheckError) {
+        console.warn('Could not check staked amount:', balanceCheckError.message);
+        // Continue anyway, the transfer will fail if there are staked tokens
+      }
+      
       // Call the transfer function on the smart contract with timeout
       const transferPromise = this.tokenInstance.transfer(
         toAddress,
         this.web3.utils.toWei(amount.toString(), 'ether'),
         { 
           from: fromAddress,
-          gas: 100000, // Lower gas limit
+          gas: 200000, // Increased gas limit
           gasPrice: this.web3.utils.toWei('5', 'gwei') // Lower gas price for testnet
         }
       );
       
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Transfer tokens request timed out')), 60000) // Increased timeout to 60 seconds
+        setTimeout(() => reject(new Error('Transfer tokens request timed out')), 120000) // Increased timeout to 120 seconds
       );
       
       const result = await Promise.race([transferPromise, timeoutPromise]);
@@ -288,9 +368,25 @@ class TokenService {
       };
     } catch (error) {
       console.error('Error transferring tokens:', error);
+      
+      // Provide more detailed error information
+      let errorMessage = error.message;
+      
+      // Check for common revert reasons
+      if (error.message.includes('gas')) {
+        errorMessage = 'Transaction failed due to gas issues. Try increasing the gas limit.';
+      } else if (error.message.includes('staked')) {
+        errorMessage = 'Cannot transfer staked tokens. Please unstake tokens before transferring.';
+      } else if (error.message.includes('balance')) {
+        errorMessage = 'Insufficient token balance for transfer.';
+      } else if (error.message.includes('paused')) {
+        errorMessage = 'Token transfers are currently paused.';
+      }
+      
       return {
         success: false,
-        error: error.message
+        error: errorMessage,
+        originalError: error.message
       };
     }
   }
@@ -315,7 +411,7 @@ class TokenService {
       );
       
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Burn tokens request timed out')), 60000) // Increased timeout to 60 seconds
+        setTimeout(() => reject(new Error('Burn tokens request timed out')), 120000) // Increased timeout to 120 seconds
       );
       
       const result = await Promise.race([burnPromise, timeoutPromise]);
@@ -439,6 +535,113 @@ class TokenService {
       return "0";
     }
   }
+  
+  /**
+   * Issue a task reward using the TaskRewardManager contract
+   * @param {string} taskId - The ID of the completed task
+   * @param {string} developerAddress - The address of the developer to reward
+   * @param {string} difficulty - The difficulty level of the task (easy, medium, hard)
+   * @param {string} taskType - The type of the task (feature, bug, improvement, etc.)
+   * @param {string} status - The status of the task (done, verified)
+   * @returns {Promise<Object>} - Result of the reward issuance
+   */
+  async issueTaskReward(taskId, developerAddress, difficulty, taskType, status) {
+    try {
+      await this.ensureInitialized();
+      
+      if (!this.taskRewardManagerInitialized || !this.taskRewardManagerInstance) {
+        throw new Error('TaskRewardManager contract is not initialized');
+      }
+      
+      const accounts = await this.getAccounts();
+      const adminAccount = accounts[0]; // Admin account is the first one
+      
+      // Call the issueTaskReward function on the TaskRewardManager contract
+      const issueRewardPromise = this.taskRewardManagerInstance.issueTaskReward(
+        taskId,
+        developerAddress,
+        difficulty,
+        taskType,
+        status,
+        { 
+          from: adminAccount,
+          gas: 200000, // Higher gas limit for this complex operation
+          gasPrice: this.web3.utils.toWei('5', 'gwei') // Lower gas price for testnet
+        }
+      );
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Issue task reward request timed out')), 120000) // 120 seconds timeout
+      );
+      
+      const result = await Promise.race([issueRewardPromise, timeoutPromise]);
+      
+      // Get the reward amount from the event logs
+      let rewardAmount = "0";
+      if (result.logs && result.logs.length > 0) {
+        // Find the RewardIssued event
+        const rewardEvent = result.logs.find(log => log.event === 'RewardIssued');
+        if (rewardEvent && rewardEvent.args) {
+          rewardAmount = this.web3.utils.fromWei(rewardEvent.args.amount.toString(), 'ether');
+        }
+      }
+      
+      return {
+        success: true,
+        transactionHash: result.tx,
+        blockNumber: result.receipt.blockNumber,
+        gasUsed: result.receipt.gasUsed,
+        rewardAmount
+      };
+    } catch (error) {
+      console.error('Error issuing task reward:', error);
+      
+      // If TaskRewardManager fails, fall back to direct minting
+      if (error.message.includes('TaskRewardManager') || error.message.includes('not initialized')) {
+        console.log('Falling back to direct token minting for task reward');
+        
+        // Calculate reward based on difficulty and status (similar to the smart contract logic)
+        const difficultyRewards = {
+          easy: 0.5,
+          medium: 1.0,
+          hard: 2.0
+        };
+        
+        const typeMultipliers = {
+          feature: 1.2,
+          bug: 1.1,
+          improvement: 1.0,
+          documentation: 0.8,
+          test: 0.9
+        };
+        
+        const statusMultipliers = {
+          done: 1.0,
+          verified: 1.25
+        };
+        
+        // Calculate reward amount
+        let rewardAmount = difficultyRewards[difficulty] || 1.0;
+        rewardAmount *= typeMultipliers[taskType] || 1.0;
+        rewardAmount *= statusMultipliers[status] || 1.0;
+        
+        // Round to 2 decimal places
+        rewardAmount = Math.round(rewardAmount * 100) / 100;
+        
+        // Mint tokens directly
+        return await this.mintTokens(
+          developerAddress,
+          rewardAmount,
+          `Task reward: ${taskId}`
+        );
+      }
+      
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
 
   async testConnection() {
     try {
@@ -514,11 +717,32 @@ class TokenService {
             throw new Error('Recipient wallet address not found');
           }
           
-          result = await this.mintTokens(
-            toUser.walletAddress,
-            transaction.amount,
-            transaction.reason
-          );
+          // Check if this is a task completion reward
+          if (transaction.reason === 'task_completion_reward' && this.taskRewardManagerInitialized) {
+            // Get the task details
+            const Task = require('../../models/Task');
+            const task = await Task.findById(transaction.taskId);
+            
+            if (!task) {
+              throw new Error('Task not found');
+            }
+            
+            // Use TaskRewardManager to issue the reward
+            result = await this.issueTaskReward(
+              task.externalId || task._id.toString(),
+              toUser.walletAddress,
+              task.difficulty.toLowerCase(),
+              task.type.toLowerCase(),
+              task.status.toLowerCase()
+            );
+          } else {
+            // Regular minting
+            result = await this.mintTokens(
+              toUser.walletAddress,
+              transaction.amount,
+              transaction.reason
+            );
+          }
           break;
 
         case 'transfer':
@@ -606,6 +830,77 @@ class TokenService {
       return result;
     } catch (error) {
       console.error('Error processing transaction:', error);
+      
+      // Update transaction status to failed
+      const transaction = await Transaction.findById(transactionId);
+      if (transaction) {
+        transaction.status = 'failed';
+        transaction.error = error.message;
+        await transaction.save();
+      }
+      
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Process a redemption transaction
+   * @param {string} transactionId - Transaction ID
+   * @returns {Promise<Object>} - Result of transaction processing
+   */
+  async processRedemptionTransaction(transactionId) {
+    try {
+      await this.ensureInitialized();
+      
+      // Get transaction from database
+      const transaction = await Transaction.findById(transactionId);
+      if (!transaction) {
+        throw new Error('Transaction not found');
+      }
+
+      // Update transaction status
+      transaction.status = 'processing';
+      await transaction.save();
+
+      let result;
+      let fromUser;
+
+      // For redemption, we need to burn tokens from the user's wallet
+      fromUser = await User.findById(transaction.from);
+      if (!fromUser || !fromUser.walletAddress) {
+        throw new Error('User wallet address not found');
+      }
+      
+      // Burn tokens for redemption
+      result = await this.burnTokens(
+        fromUser.walletAddress,
+        transaction.amount,
+        'token_redemption'
+      );
+
+      // Update transaction with result
+      if (result.success) {
+        transaction.status = 'completed';
+        transaction.transactionHash = result.transactionHash;
+        transaction.blockNumber = result.blockNumber;
+        transaction.gasUsed = result.gasUsed;
+        transaction.processedAt = Date.now();
+        
+        // Update user balance
+        fromUser.tokenBalance = await this.getBalance(fromUser.walletAddress);
+        await fromUser.save();
+      } else {
+        transaction.status = 'failed';
+        transaction.error = result.error;
+      }
+
+      await transaction.save();
+      return result;
+    } catch (error) {
+      console.error('Error processing redemption transaction:', error);
       
       // Update transaction status to failed
       const transaction = await Transaction.findById(transactionId);

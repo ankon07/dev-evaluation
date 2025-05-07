@@ -11,6 +11,7 @@ The Developer Evaluation and Reward System is designed to automatically evaluate
 - **Data Integration**: Connect to GitHub, task management systems, CI/CD tools, and code quality platforms
 - **Evaluation Engine**: Process integrated data to calculate performance metrics per developer
 - **Blockchain & Token Module**: Secure reward distribution using blockchain technology
+- **Automatic Task Rewards**: Instant token rewards for completed tasks based on difficulty, type, and status
 - **Developer Wallet & Interface**: User-friendly dashboard for developers to track performance and rewards
 - **Admin & HR Integration**: Administrative interface for system configuration and reporting
 
@@ -34,6 +35,7 @@ The Developer Evaluation and Reward System is designed to automatically evaluate
 - Ethereum/Polygon smart contracts
 - Web3.js for blockchain interaction
 - Truffle for smart contract development and deployment
+- Smart contracts for token management and automatic task rewards
 
 ## Project Structure
 
@@ -138,9 +140,12 @@ GITHUB_ORG=your_github_organization
 # Blockchain Configuration
 BLOCKCHAIN_NETWORK=polygon
 BLOCKCHAIN_RPC_URL=https://polygon-rpc.com
-CONTRACT_ADDRESS=0x...
+SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY
+DEV_TOKEN_ADDRESS=0x...
+TASK_REWARD_MANAGER_ADDRESS=0x...
 ADMIN_WALLET_ADDRESS=0x...
-ADMIN_WALLET_PRIVATE_KEY=your_private_key
+PRIVATE_KEY=your_wallet_private_key
+MNEMONIC=your_wallet_mnemonic_phrase
 ```
 
 ### Smart Contract Configuration
@@ -178,12 +183,15 @@ module.exports = {
 1. Login with admin credentials
 2. Access the admin dashboard at `/admin`
 3. Configure system settings, manage users, and view reports
+4. Manage task reward parameters (difficulty rewards, type multipliers, status multipliers)
+5. Process completed tasks to trigger automatic rewards
 
 ### Developer Interface
 
 1. Login with developer credentials
 2. View your performance metrics and rewards on the dashboard
 3. Access your wallet to view token balance and transaction history
+4. Receive automatic token rewards when completing tasks based on difficulty, type, and status
 
 ## Documentation
 
@@ -193,6 +201,7 @@ For more detailed documentation, please refer to the following:
 - [Implementation Summary](docs/implementation-summary.md)
 - [API Documentation](docs/api-docs.md)
 - [Smart Contract Documentation](docs/smart-contracts.md)
+- [Task Reward System](docs/task-reward-system.md)
 
 ## Contributing
 

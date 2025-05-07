@@ -214,6 +214,32 @@ const ManageEvaluations = () => {
     setEvaluationToRun(evaluation);
     setOpenRunDialog(true);
   };
+  
+  const handleApproveEvaluation = async (evaluation, approvalType) => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      await axios.put(`/api/evaluations/${evaluation._id}/approve`, { approvalType });
+      
+      // Update evaluation status
+      const updatedEvaluations = evaluations.map(evalItem => {
+        if (evalItem._id === evaluation._id) {
+          return { ...evalItem, approvalStatus: 'approved' };
+        }
+        return evalItem;
+      });
+      
+      setEvaluations(updatedEvaluations);
+      setSuccess(`Evaluation for ${evaluation.developer?.name} approved successfully`);
+    } catch (error) {
+      console.error('Error approving evaluation:', error);
+      setError('Failed to approve evaluation. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleViewEvaluation = (id) => {
     navigate(`/admin/evaluations/${id}`);

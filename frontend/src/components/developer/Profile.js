@@ -204,7 +204,8 @@ const Profile = () => {
   };
 
   const handleConnectGitHub = () => {
-    window.location.href = '/api/auth/github';
+    // Use the full backend URL to avoid proxy issues
+    window.location.href = 'http://localhost:5000/api/auth/github';
   };
 
   const getSkillLevelColor = (level) => {

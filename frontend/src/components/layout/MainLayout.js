@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import MetaMaskConnector from '../common/MetaMaskConnector';
+import NotificationCenter from '../common/NotificationCenter';
 import {
   AppBar,
   Box,
@@ -37,6 +38,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
+import GitHubIcon from '@mui/icons-material/GitHub';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
@@ -89,12 +91,15 @@ const MainLayout = () => {
     { text: 'Evaluations', icon: <AssessmentIcon />, path: '/evaluations' },
     { text: 'Wallet', icon: <AccountBalanceWalletIcon />, path: '/wallet' },
     { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
+    { text: 'Redemption Options', icon: <ReceiptIcon />, path: '/redemptions' },
+    { text: 'GitHub Profile', icon: <GitHubIcon />, path: '/github-profile' },
   ];
 
   const adminMenuItems = [
     { text: 'Admin Dashboard', icon: <AdminPanelSettingsIcon />, path: '/admin' },
     { text: 'Manage Users', icon: <PeopleIcon />, path: '/admin/users' },
     { text: 'Manage Evaluations', icon: <AssessmentIcon />, path: '/admin/evaluations' },
+    { text: 'Manage Redemptions', icon: <ReceiptIcon />, path: '/admin/redemptions' },
     { text: 'Mint Tokens', icon: <AccountBalanceWalletIcon />, path: '/admin/mint-tokens' },
     { text: 'System Config', icon: <SettingsIcon />, path: '/admin/config' },
     { text: 'Reward Rules', icon: <RuleIcon />, path: '/admin/rules' },
@@ -195,6 +200,7 @@ const MainLayout = () => {
           <IconButton sx={{ ml: 1 }} onClick={toggleTheme} color="inherit">
             {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
           </IconButton>
+          <NotificationCenter />
           <Tooltip title="Account settings">
             <IconButton
               onClick={handleProfileMenuOpen}
